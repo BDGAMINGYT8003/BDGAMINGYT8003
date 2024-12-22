@@ -13,7 +13,7 @@ const logger = {
     success: (msg) => console.log(`${logger.timestamp()} ${colors.green('✔')} ${colors.green(msg)}`),
     warn: (msg) => console.log(`${logger.timestamp()} ${colors.yellow('⚠')} ${colors.yellow(msg)}`),
     error: (msg, err) => console.error(
-        `${logger.timestamp()} ${colors.red('✖')} ${colors.red(msg)}` + 
+        `${logger.timestamp()} ${colors.red('✖')} ${colors.red(msg)}` +
         (err ? `\n${colors.gray(err.stack || err)}` : '')
     ),
     command: (cmd, desc) => console.log(
@@ -32,13 +32,7 @@ if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === 'YOUR_BOT_TOKEN_HERE') {
 }
 
 // Initialize bot with enhanced configuration and error handling
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN, {
-    handlerTimeout: 90000,
-    telegram: {
-        webhookReply: false,
-        apiRoot: 'https://api.telegram.org'
-    }
-});
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 // Enhanced collections with validation and error tracking
 const commands = new Map();
@@ -48,7 +42,7 @@ const errorCounts = new Map();
 // Enhanced command loading with validation and error handling
 const loadCommands = () => {
     const commandsPath = path.join(__dirname, 'commands');
-    
+
     if (!fs.existsSync(commandsPath)) {
         fs.mkdirSync(commandsPath, { recursive: true });
         logger.info('Created commands directory structure');
@@ -67,10 +61,10 @@ const loadCommands = () => {
             const filePath = path.join(commandsPath, file);
             delete require.cache[require.resolve(filePath)];
             const command = require(filePath);
-            
+
             const requiredProps = ['name', 'description', 'execute'];
             const missingProps = requiredProps.filter(prop => !command[prop]);
-            
+
             if (missingProps.length === 0) {
                 if (commands.has(command.name)) {
                     logger.warn(`Duplicate command name found: ${command.name} in ${file}`);
@@ -83,7 +77,7 @@ const loadCommands = () => {
                     loadedAt: new Date(),
                     errorCount: 0
                 });
-                
+
                 if (command.actions) {
                     Object.entries(command.actions).forEach(([actionName, handler]) => {
                         const fullActionName = `${command.name}:${actionName}`;
@@ -95,7 +89,7 @@ const loadCommands = () => {
                         logger.debug(`Registered action: ${colors.bold(fullActionName)}`);
                     });
                 }
-                
+
                 loadedCount++;
                 logger.success(`Loaded command: ${colors.bold(command.name)}`);
             } else {
@@ -117,12 +111,12 @@ const reloadCommands = () => {
         commands: new Map(commands),
         actions: new Map(actions)
     };
-    
+
     try {
         commands.clear();
         actions.clear();
         loadCommands();
-        
+
         logger.success(
             `Reloaded ${colors.bold(commands.size)} commands and ` +
             `${colors.bold(actions.size)} actions`
@@ -150,16 +144,16 @@ const createKeyboard = (buttons, options = {}) => {
     }
 
     const { columns = 2, oneTime = false, resize = true } = options;
-    
+
     if (columns < 1) {
         throw new Error('Columns must be at least 1');
     }
-    
+
     const keyboard = [];
     for (let i = 0; i < buttons.length; i += columns) {
         keyboard.push(buttons.slice(i, i + columns));
     }
-    
+
     return Markup.keyboard(keyboard)
         .oneTime(oneTime)
         .resize(resize);
@@ -176,16 +170,16 @@ const createInlineKeyboard = (buttons, options = {}) => {
     }
 
     const { columns = 2 } = options;
-    
+
     if (columns < 1) {
         throw new Error('Columns must be at least 1');
     }
-    
+
     const keyboard = [];
     for (let i = 0; i < buttons.length; i += columns) {
         keyboard.push(buttons.slice(i, i + columns));
     }
-    
+
     return Markup.inlineKeyboard(keyboard);
 };
 
@@ -202,7 +196,7 @@ commands.forEach((command, name) => {
             command.errorCount = (command.errorCount || 0) + 1;
             logger.error(`Command execution failed: ${name}`, error);
             await ctx.reply('⚠️ An error occurred while processing your command.');
-            
+
             if (command.errorCount >= 5) {
                 logger.warn(
                     `Command ${name} has failed ${command.errorCount} times, consider checking for issues`
@@ -218,7 +212,7 @@ bot.on('callback_query', async (ctx) => {
     try {
         const [command, action] = ctx.callbackQuery.data.split(':');
         const handler = actions.get(`${command}:${action}`);
-        
+
         if (handler) {
             await handler(ctx, { createKeyboard, createInlineKeyboard });
             logger.debug(
@@ -254,10 +248,10 @@ bot.command('help', async (ctx) => {
         commands.forEach((command, name) => {
             helpMessage += `/${name} - ${command.description}\n`;
         });
-        
+
         const helpButtons = Array.from(commands.keys())
             .map(cmd => Markup.button.callback(cmd, `help:${cmd}`));
-        
+
         await ctx.replyWithMarkdown(
             helpMessage,
             createInlineKeyboard(helpButtons, { columns: 3 })
@@ -285,10 +279,26 @@ bot.catch((err, ctx) => {
         .catch(replyError => logger.error('Failed to send error message to user', replyError));
 });
 
-// Enhanced bot launch with health checks
+// Function to send a heartbeat to itself to stay alive
+const keepAlive = async () => {
+    try {
+        // You can use any command that your bot responds to.
+        // Sending a simple command like /help to a specific admin user is a good approach.
+        // Replace 'YOUR_ADMIN_USER_ID' with the actual user ID.
+        await bot.telegram.sendMessage('7021725802', '/ping (heartbeat)');
+        logger.debug('Heartbeat sent to keep the bot alive.');
+    } catch (error) {
+        logger.error('Failed to send heartbeat', error);
+    }
+};
+
+// Send a heartbeat every 10 seconds
+setInterval(keepAlive, 10000);
+
+// Enhanced bot launch with health checks (using long polling by default)
 bot.launch()
     .then(() => {
-        logger.success(colors.bold('Bot successfully started! 🚀'));
+        logger.success(colors.bold('Bot successfully started using Long Polling! 🚀'));
         logger.info(colors.bold('\nAvailable Commands:'));
         commands.forEach((command, name) => {
             logger.command(name, command.description);

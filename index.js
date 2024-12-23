@@ -4,7 +4,7 @@ const path = require('path');
 const colors = require('picocolors');
 
 // Hardcoded bot token - Replace 'YOUR_BOT_TOKEN_HERE' with your actual token
-const TELEGRAM_BOT_TOKEN = '7947606721:AAFvpnISHrlLJfHt1xt-qZEKb5XOF0vGv1c';
+const TELEGRAM_BOT_TOKEN = '7947606721:AAGd2R01CjGfn_UdHusbB7rXJbLf20s6MMs';
 
 // Enhanced console logging utility with timestamps
 const logger = {
